@@ -1,0 +1,19 @@
+{
+  "name": "Grogar AutoEndec",
+  "description": "Encodes and decodes Grogar-encoded posts automatically.",
+  "version": "0.1",
+  "manifest_version": 2,
+  "content_scripts": [
+    {
+      "matches": ["*://tbgforums.com/forums/viewtopic.php*", "*://tbgforums.com/forums/search.php*", "*://tbgforums.com/forums/post.php*"],
+      "js": ["Endec.js"]
+    },
+    {
+      "matches": ["*://tbgforums.com/forums/viewtopic.php*", "*://tbgforums.com/forums/post.php*"],
+      "js": ["InjectTopic.js"]
+    }
+  ],
+  "permissions": [
+    "activeTab"
+  ]
+}

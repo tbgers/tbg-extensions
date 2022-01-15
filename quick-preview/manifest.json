@@ -1,0 +1,12 @@
+{
+  "name": "Quick Preview",
+  "description": "Allows you to preview posts quickly.",
+  "version": "0.1",
+  "manifest_version": 2,
+  "content_scripts": [
+    {
+      "matches": ["*://tbgforums.com/forums/viewtopic.php*"],
+      "js": ["QuickPreview.js"]
+    }
+  ]
+}

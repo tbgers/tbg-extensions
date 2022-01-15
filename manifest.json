@@ -1,0 +1,12 @@
+{
+  "name": "TBGs Extensions",
+  "description": "A collection of browser extensions for the TBGs.\nCurrently it has QuickPreview on the manifest..",
+  "version": "0.1",
+  "manifest_version": 2,
+  "content_scripts": [
+    {
+      "matches": ["*://tbgforums.com/forums/viewtopic.php*"],
+      "js": ["quickpreview/QuickPreview.js"]
+    }
+  ]
+}
