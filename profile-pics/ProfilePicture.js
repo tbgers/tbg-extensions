@@ -7,7 +7,7 @@ for (var post of posts) {
     let match = /\[avatar=(.+?)\]/.exec(signature);
     if (match !== null && table.getElementsByClassName("postavatar").length == 0) {
         var image = document.createElement("img");
-        image.src = match[1];
+        image.src = encodeURI(match[1]);
         image.width = 90; image.height = 90;
         image.className = "postavatar";
         var after = table.getElementsByClassName("usertitle")[0];
