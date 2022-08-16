@@ -88,12 +88,13 @@
     }
 
     const singletonTags = {"*": ["list"]};
+    const rawTags = ["code"];
 
     function parse(text) {
         // This may be dumb
         console.log("Phase -1", JSON.stringify(text));
 
-        text = text.replace(/\[(.+?)(?:=[^\]]+?)?\]\[\/\1\]/g,"");
+        text = text.replace(/\[(.+?)(?:=[^\]]+?)?\]\[\/\1\]/g, "");
         console.log("Phase 0", JSON.stringify(text));
 
         // Parse text into blocks
@@ -112,9 +113,13 @@
                 if (layers == 0) {
                     let tag = temp.split("=", 2);
                     let ending = /^\//.test(tag[0]);
-                    tag[0] = (tag[0] || "").replace(/^\//, "");
-                    blocks.push({type: "tag", name: tag[0], data: tag[1], ending, content: []});
-                    temp = "";
+                        tag[0] = (tag[0] || "").replace(/^\//, "");
+                    if (!(tag[0] in tagTypes)) { // invalid tag
+                        blocks[blocks.length-1].content += `[${temp}]`;
+                    } else {
+                        blocks.push({type: "tag", name: tag[0], data: tag[1], ending, content: []});
+                        temp = "";
+                    }
                 }
             } else if (i == '"') {
                 if (layers == 1) layers = 2;
@@ -122,6 +127,13 @@
             } else temp += i;
         }
         blocks.push({type: "text", content: temp});
+        // Concatenate the last text blocks
+        let concat = "";
+        while (blocks[blocks.length-1].type == "text") {
+            let a = blocks.pop();
+            concat += a.content;
+        }
+        blocks.push({type: "text", content: concat});
         console.log("Phase 1", blocks)
 
         // Merge tags or something
@@ -134,6 +146,9 @@
                     let _ = stack.pop();
                     if (blocks[i].name == _.name) {
                         if (!(!blocks[i].ending || _.ending)) {
+                            // special cases for raw tags
+                            if (rawTags.includes(blocks[i].type))
+                                blocks[i].content = blockToString(blocks[i]).match(/\[(.+?)(?:=[^\]]+?)?\]()\[\/\1\]/, "")[2];
                             stack[stack.length-1].content.push({ending: "full", ...blocks[i], ..._});
                         } else if (_.name in singletonTags) {
                             stack[stack.length-1].content.push(_);
@@ -265,20 +280,51 @@
         }
     }
 
+    function elementToBBCode(post) {
+        // What we really care for now is de-parsing [code]s for now, although this will
+        // become more populated when BBCode is switched back on.
+        let result = "";
+        for (let node of post.childNodes) {
+            switch (node.nodeName.toLowerCase()) {
+                case "#text":
+                    result += node.wholeText;
+                    break;
+                case "p":
+                    for (let n of node.childNodes) {
+                        if (n.nodeName.toLowerCase() == "br") result += "\n";
+                        else if (n.nodeName.toLowerCase() == "#text") result += n.wholeText;
+                    }
+                case "div":
+                    if (node.getAttribute("class") == "codebox") {
+                        result += `[code]${node.innerText}[/code]`;
+                    }
+                    break;
+            }
+        }
+        return result.trim();
+    }
+
     // Process all the posts
     for (var post of document.querySelectorAll("#brdmain div[id^=p]")) {
         // Process post
+        try {
         console.log(post);
-        let code = post.querySelector("a[onclick^=Quote]").getAttribute("onclick");
-        if (code) code = eval(code.match(/Quote\('.+?', ('.+')\)/)[1]); // this might be super dumb
-        else code = post.querySelector("div.postright div.postmsg").innerText;
+        let code = post.querySelector("a[onclick^=Quote]"); // consider using the quick post button
+        if (code) code = eval(code.getAttribute("onclick").match(/Quote\('.+?', ('.+')\)/)[1]); // this might be super dumb
+        else {
+            // consider using a the post itself
+            code = elementToBBCode(post.querySelector("div.postright div.postmsg"));
+        }
         let result = parse(code);
         post.querySelector("div.postright div.postmsg").innerHTML = result.innerHTML;
+        } catch (e) {}
 
         // Process signatures
-        code = post.querySelector("div.postsignature").innerText;
-        result = parse(code);
-        post.querySelector("div.postright div.postsignature").innerHTML = result.innerHTML;
+        try {
+            code = elementToBBCode(post.querySelector("div.postsignature"));
+            result = parse(code);
+            post.querySelector("div.postright div.postsignature").innerHTML = result.innerHTML;
+        } catch (e) {}
     }
 
     // Bodges
@@ -293,6 +339,10 @@
         for (var p of post.querySelectorAll('p')) {
             p.innerHTML = p.innerHTML.replace(/^(<br>)+/, "");
         }
+    }
+    for (var br of document.querySelectorAll('p > br')) {
+        br.parentNode.parentNode.insertBefore(br, br.parentNode);
+        br.parentNode.removeChild(br);
     }
     for (var p of document.querySelectorAll('p:empty')) {
         p.parentNode.removeChild(p);
@@ -312,4 +362,5 @@
         a.innerHTML = a.innerHTML.replace(/<\/?p>/g, "");
         a.parentNode.insertBefore(document.createElement("br"), a.nextSibling);
     }
+
 })();
