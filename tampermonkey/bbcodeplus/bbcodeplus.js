@@ -40,7 +40,7 @@
 
     let style = document.createElement("style");
     style.innerHTML = customCSS
-    document.body.appendChild(style);
+    document.head.appendChild(style);
 
     const tagTypes = {
         "b": "b",
