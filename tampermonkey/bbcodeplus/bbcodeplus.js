@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BBCode+
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Enhances the BBCode parser. (parsing is done locally)
 // @author       Gilbert189
 // @match        *://tbgforums.com/forums/edit.php*
@@ -13,6 +13,8 @@
 
 (function() {
     'use strict';
+
+    const debug = true;
 
     var escape = document.createElement('textarea');
     function escapeHTML(html) {
@@ -48,7 +50,10 @@
         "u": "u",
         "s": "s",
         "h": "h4",
+        "del": "del",
+        "em": "em",
         "ins": "ins",
+        "c": "pre",
         "quote": "div",
         "code": "div",
         "img": "img",
@@ -64,19 +69,21 @@
         "list": "ul",
         "*": "li",
         "url": "a",
-        "img": "img",/* // too lazy to implement this
+        "img": "img",
         "post": "a",
         "topic": "a",
         "forum": "a",
         "user": "a",
-        "email": "a",*/
+        "email": "a",
         "marquee": "marquee",
         "table": "table",
         "-": "tr",
         "#": "th",
         "|": "td",
-        "box": "div"
+        "box": "div",
+        "width": "div"
     }
+    const textStyles = ["br", "b", "i", "u", "s", "pre", "a", "del", "em", "span", "ins"];
 
     function blockToString(block, toBlock=true) {
         let content = "";
@@ -92,10 +99,10 @@
 
     function parse(text) {
         // This may be dumb
-        console.log("Phase -1", JSON.stringify(text));
+        if (debug) console.log("Phase -1", JSON.stringify(text));
 
         text = text.replace(/\[(.+?)(?:=[^\]]+?)?\]\[\/\1\]/g, "");
-        console.log("Phase 0", JSON.stringify(text));
+        if (debug) console.log("Phase 0", JSON.stringify(text));
 
         // Parse text into blocks
         let blocks = [];
@@ -104,7 +111,7 @@
         for (var i of text) {
             if (i == "[" && layers != 2) {
                 if (layers == 0) {
-                    blocks.push({type: "text", content: temp});
+                    if (temp != "") blocks.push({type: "text", content: temp});
                     temp = "";
                 }
                 layers = 1;
@@ -129,12 +136,12 @@
         blocks.push({type: "text", content: temp});
         // Concatenate the last text blocks
         let concat = "";
-        while (blocks[blocks.length-1].type == "text") {
+        while (blocks.length > 0 ? blocks[blocks.length-1].type == "text" : false) {
             let a = blocks.pop();
             concat += a.content;
         }
         blocks.push({type: "text", content: concat});
-        console.log("Phase 1", blocks)
+        if (debug) console.log("Phase 1", blocks)
 
         // Merge tags or something
         var old = [];
@@ -183,9 +190,9 @@
             old = blocks;
             // console.log(JSON.stringify(blocks));
         }
-        console.log("Phase 2", blocks);
+        if (debug) console.log("Phase 2", blocks);
 
-        return toElement(blocks);
+        return toElement(blocks)[0];
     }
 
     function safeCSS(css) {
@@ -198,90 +205,139 @@
             let result = document.createElement(name);
             let data = escapeHTML(block.data);
             for (var i of block.content) {
-                result.appendChild(toElement(i));
+                for (var c of toElement(i)) {
+                    result.appendChild(c);
+                }
             }
-            switch (block.name) {
-                case "color":
-                    result.setAttribute("style", `color: ${safeCSS(data || "inherit")};`);
-                    break;
-                case "font":
-                    result.setAttribute("style", `font-family: ${safeCSS(data || "inherit")};`);
-                    break;
-                case "size":
-                    result.setAttribute("style", `font-size: ${data?safeCSS(data.replace(/[^\d]+/g, ""))+"pt":"inherit"} !important;`);
-                    break;
-                case "small":
-                    result.setAttribute("style", `font-size: 0.75em !important;`);
-                    break;
-                case "big":
-                    result.setAttribute("style", `font-size: 1.5em !important;`);
-                    break;
-                case "right":
-                    result.setAttribute("style", `text-align: right !important;`);
-                    break;
-                case "center":
-                    result.setAttribute("style", `text-align: center !important;`);
-                    break;
-                case "url":
-                    if (data) result.setAttribute("href", data);
-                    else result.setAttribute("href", result.innerText);
-                    break;
-                case "img":
-                    result.setAttribute("src", result.innerText);
-                    result.setAttribute("alt", data);
-                    result.setAttribute("title", data);
-                    break;
-                case "#":
-                case "|":
-                    let spanType = data[0];
-                    let size = data.slice(1).replace(/[^\d]+/g, "");
-                    if (spanType == "r" || spanType == "-") {
-                        result.setAttribute("rowspan", size);
-                    } else if (spanType == "c" || spanType == "|") {
-                        result.setAttribute("colspan", size);
-                    }
-                    break;
-                case "quote":
-                    result.setAttribute("class", "quotebox");
-                    result.innerHTML = (data?`<cite >${data} wrote:</cite>`:"") + `<blockquote><div >${result.innerHTML}</div></blockquote>`;
-                    break;
-                case "box":
-                    result.setAttribute("class", "blockmessage");
-                    result.innerHTML = (data?`<h2><span>${data}</span></h2>`:"") + `<div class="box" style="padding: 0px 10px;"><div class="inbox">${result.innerHTML}</div></div>`;
-                    break;
-                case "code":
-                    result.setAttribute("class", "codebox");
-                    result.innerHTML = `<pre><code>${result.innerHTML}</code></pre>`;
-                    break;
-                case "list":
-                    let inner = result.innerHTML;
-                    if (data) {
-                        result = document.createElement("ol");
-                        result.innerHTML = inner;
-                        result.setAttribute("start", data);
-                    }
-                    break;
-                case "table":
-                    let boxed = document.createElement("div");
-                    boxed.setAttribute("class", "box");
-                    boxed.appendChild(result);
-                    result = boxed;
-                    console.log(result);
-                    break;
-                default:
-                    result.setAttribute("data", escapeHTML(block.data));
-                    break;
+            try {
+                switch (block.name) {
+                    case "color":
+                        result.setAttribute("style", `color: ${safeCSS(data || "inherit")};`);
+                        break;
+                    case "font":
+                        result.setAttribute("style", `font-family: ${safeCSS(data || "inherit")};`);
+                        break;
+                    case "size":
+                        result.setAttribute("style", `font-size: ${data?safeCSS(data.replace(/[^\d]+/g, ""))+"pt":"inherit"} !important;`);
+                        break;
+                    case "small":
+                        result.setAttribute("style", `font-size: 0.75em !important;`);
+                        break;
+                    case "big":
+                        result.setAttribute("style", `font-size: 1.5em !important;`);
+                        break;
+                    case "right":
+                        result.setAttribute("style", `text-align: right !important;`);
+                        break;
+                    case "center":
+                        result.setAttribute("style", `text-align: center !important;`);
+                        break;
+                    case "url":
+                        if (data) result.setAttribute("href", data);
+                        else result.setAttribute("href", result.innerText);
+                        break;
+                    case "topic":
+                        if (data) result.setAttribute("href", data.replace(/[^\d]+/g, ""));
+                        else {
+                            result.setAttribute("href", result.innerText.replace(/[^\d]+/g, ""));
+                            result.innerText = `https://tbgforums.com/forums/viewtopic.php?id=${result.innerText}`
+                        }
+                        result.setAttribute("href", `https://tbgforums.com/forums/viewtopic.php?id=${result.getAttribute("href")}`);
+                        break;
+                    case "post":
+                        if (data) result.setAttribute("href", data.replace(/[^\d]+/g, ""));
+                        else {
+                            result.setAttribute("href", result.innerText.replace(/[^\d]+/g, ""));
+                            result.innerText = `https://tbgforums.com/forums/viewtopic.php?pid=${result.innerText}#p${result.innerText}`
+                        }
+                        result.setAttribute("href", `https://tbgforums.com/forums/viewtopic.php?pid=${result.getAttribute("href")}#p${result.getAttribute("href")}`);
+                        break;
+                    case "forum":
+                        if (data) result.setAttribute("href", data.replace(/[^\d]+/g, ""));
+                        else {
+                            result.setAttribute("href", result.innerText.replace(/[^\d]+/g, ""));
+                            result.innerText = `https://tbgforums.com/forums/viewforum.php?id=1${result.innerText}`
+                        }
+                        result.setAttribute("href", `https://tbgforums.com/forums/viewforum.php?id=1${result.getAttribute("href")}`);
+                        break;
+                    case "user":
+                        if (data) result.setAttribute("href", data.replace(/[^\d]+/g, ""));
+                        else {
+                            result.setAttribute("href", result.innerText.replace(/[^\d]+/g, ""));
+                            result.innerText = `https://tbgforums.com/forums/profile.php?id=2${result.innerText}`
+                        }
+                        result.setAttribute("href", `https://tbgforums.com/forums/profile.php?id=2${result.getAttribute("href")}`);
+                        break;
+                    case "img":
+                        result.setAttribute("src", result.innerText);
+                        result.setAttribute("alt", data);
+                        result.setAttribute("title", data);
+                        break;
+                    case "#":
+                    case "|":
+                        let spanType = data[0];
+                        let size = data.slice(1).replace(/[^\d]+/g, "");
+                        if (spanType == "r" || spanType == "-") {
+                            result.setAttribute("rowspan", size);
+                        } else if (spanType == "c" || spanType == "|") {
+                            result.setAttribute("colspan", size);
+                        }
+                        break;
+                    case "quote":
+                        result.setAttribute("class", "quotebox");
+                        result.innerHTML = (data?`<cite >${data} wrote:</cite>`:"") + `<blockquote><div >${result.innerHTML}</div></blockquote>`;
+                        break;
+                    case "box":
+                        result.setAttribute("class", "blockmessage");
+                        result.innerHTML = (data?`<h2><span>${data}</span></h2>`:"") + `<div class="box" style="padding: 0px 10px;"><div class="inbox">${result.innerHTML}</div></div>`;
+                        break;
+                    case "code":
+                        result.setAttribute("class", "codebox");
+                        result.innerHTML = `<pre><code>${result.innerHTML}</code></pre>`;
+                        break;
+                    case "c":
+                        result.setAttribute("class", "codebox");
+                        result.setAttribute("style", "display: inline; margin: 0px;");
+                    case "list":
+                        let inner = result.innerHTML;
+                        if (data) {
+                            result = document.createElement("ol");
+                            result.innerHTML = inner;
+                            result.setAttribute("start", data);
+                        }
+                        break;
+                    case "table":
+                        let boxed = document.createElement("div");
+                        boxed.setAttribute("class", "box");
+                        boxed.appendChild(result);
+                        result = boxed;
+                        console.log(result);
+                        break;
+                    case "width":
+                        result.setAttribute("style", `width: ${data?safeCSS(data):"100%"} !important;`);
+                        break;
+                    default:
+                        result.setAttribute("data", escapeHTML(block.data));
+                        break;
+                }
+            } catch (e) {
+                return toElement(blockToString(block));
             }
-            return result;
+            return [result];
         } else {
-            let result = document.createElement("p");
-            result.innerText = block.content;
-            return result;
+            let m = ""
+            if (m = block.content.match(/^(\n+)$/)) {
+                return Array(m[1].length).fill(document.createElement("br"));
+            } else {
+                let result = document.createElement("p");
+                result.innerText = block.content;
+                return [result];
+            }
         }
     }
 
     function elementToBBCode(post) {
-        // What we really care for now is de-parsing [code]s for now, although this will
+        // What we really care for now is unparsing [code]s, although this will
         // become more populated when BBCode is switched back on.
         let result = "";
         for (let node of post.childNodes) {
@@ -294,6 +350,8 @@
                         if (n.nodeName.toLowerCase() == "br") result += "\n";
                         else if (n.nodeName.toLowerCase() == "#text") result += n.wholeText;
                     }
+                case "br":
+                    result += "\n";
                 case "div":
                     if (node.getAttribute("class") == "codebox") {
                         result += `[code]${node.innerText}[/code]`;
@@ -304,28 +362,84 @@
         return result.trim();
     }
 
+    function correctText(post, id) {
+        console.log([...post.childNodes].map(a => a.outerHTML), id);
+        let result = post.cloneNode();
+        let accumulator = document.createElement("p");
+        for (var node of [...post.childNodes]) {
+            console.log(node.outerHTML, accumulator.outerHTML);
+            if (node.nodeName.toLowerCase() == "p") { // regular text
+                let prev = "";
+                console.log(node.childNodes);
+                for (var n of [...node.childNodes]) {
+                    console.log(n);
+                    if (n.nodeName.toLowerCase() == "#text" && prev == "#text") {
+                        accumulator.appendChild(n);
+                    } else accumulator.appendChild(n);
+                    prev = n.nodeName.toLowerCase();
+                }
+            } else if (node.nodeName.toLowerCase() == "div" && node.getAttribute("class") == "quotebox") { // quotes
+                let quote = node.cloneNode(true);
+                let content = node.querySelector("blockquote div");
+                let r = correctText(content, id+".quote");
+                content.innerHTML = "";
+                for (var n of [...r.childNodes]) content.appendChild(n);
+
+                result.appendChild(accumulator);
+                result.appendChild(quote);
+                accumulator = document.createElement("p");
+            } else if (textStyles.includes(node.nodeName.toLowerCase())) { // styles
+                let acc2 = node.cloneNode();
+                for (var n of [...node.childNodes]) {
+                    if (n.nodeName.toLowerCase() == "p") {
+                        acc2.appendChild(new Text(n.innerText));
+                    } else {
+                        acc2.appendChild(n);
+                    }
+                }
+                accumulator.append(acc2);
+            } else { // something else
+                result.appendChild(accumulator);
+                result.appendChild(node);
+                accumulator = document.createElement("p");
+            }
+        }
+        result.append(accumulator);
+        return result;
+    }
+
     // Process all the posts
     for (var post of document.querySelectorAll("#brdmain div[id^=p]")) {
         // Process post
         try {
-        console.log(post);
-        let code = post.querySelector("a[onclick^=Quote]"); // consider using the quick post button
-        if (code) code = eval(code.getAttribute("onclick").match(/Quote\('.+?', ('.+')\)/)[1]); // this might be super dumb
-        else {
-            // consider using a the post itself
-            code = elementToBBCode(post.querySelector("div.postright div.postmsg"));
-        }
-        let result = parse(code);
-        post.querySelector("div.postright div.postmsg").innerHTML = result.innerHTML;
-        } catch (e) {}
+            let code = post.querySelector("a[onclick^=Quote]"); // consider using the quick post button
+            if (code) code = eval(code.getAttribute("onclick").match(/Quote\('.+?', ('.+')\)/)[1]); // this might be super dumb
+            else {
+                // consider using a the post itself
+                code = elementToBBCode(post.querySelector("div.postright div.postmsg"));
+            }
+            let result = parse(code);
+            result = correctText(result, post.getAttribute("id"));
+            let content = post.querySelector("div.postright div.postmsg");
+            content.innerHTML = "";
+            for (var node in content.childNodes) {content.appendChild(result)}
+        } catch (e) {console.error(`Error when parsing post of ${post.getAttribute("id")}\n`, e)}
 
         // Process signatures
         try {
-            code = elementToBBCode(post.querySelector("div.postsignature"));
-            result = parse(code);
-            post.querySelector("div.postright div.postsignature").innerHTML = result.innerHTML;
-        } catch (e) {}
+            let code = elementToBBCode(post.querySelector("div.postsignature"));
+            let result = parse(code);
+            result = correctText(result);
+            let content = post.querySelector("div.postright div.postsignature");
+            content.innerHTML = "";
+            for (var node in content.childNodes) {content.appendChild(result)}
+        } catch (e) {console.error(`Error when parsing signature of ${post.getAttribute("id")}\n`, e)}
     }
+
+    // Embed parse, toElement, and elementToBBCode to document because why not
+    document.parse = parse;
+    document.toElement = toElement;
+    document.elementToBBCode = elementToBBCode;
 
     // Bodges
 
@@ -334,28 +448,52 @@
         post.prepend(document.createElement("hr"));
     }
 
-    // Remove blank <p>s and add <br>s
-    for (var post of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg")) {
-        for (var p of post.querySelectorAll('p')) {
-            p.innerHTML = p.innerHTML.replace(/^(<br>)+/, "");
+    // Remove trailing <br> and empty <p>s
+    for (var p of document.querySelectorAll('#brdmain div[id^=p] p')) {
+        let children = [...p.childNodes];
+        // remove <br> in the beggining
+        let latch = false;
+        let temp = [];
+        for (var c of children) {
+            if (c.nodeName.toLowerCase() != "br" || latch) {
+                temp.push(c);
+                latch = true;
+            }
+        }
+        // remove <br> in the end
+        temp.reverse();
+        children = temp;
+        temp = [];
+        for (var c of children) {
+            if (c.nodeName.toLowerCase() != "br" || latch) {
+                temp.push(c);
+                latch = true;
+            }
+        }
+        temp.reverse();
+        // add them to the <p>
+        p.innerHTML = "";
+        for (var c of temp) {
+            p.appendChild(c);
         }
     }
-    for (var br of document.querySelectorAll('p > br')) {
-        br.parentNode.parentNode.insertBefore(br, br.parentNode);
-        br.parentNode.removeChild(br);
-    }
-    for (var p of document.querySelectorAll('p:empty')) {
+    for (var p of document.querySelectorAll('#brdmain div[id^=p] p:empty')) {
         p.parentNode.removeChild(p);
     }
 
     // Trim tables (you'll see why I added this)
-    for (var post of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg table")) {
-        let table = post.outerHTML;
-        post.parentNode.innerHTML = table;
+    for (var br of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg table ~ br")) {
+        br.parentNode.removeChild(br);
+    }
+    for (var br of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg table > br")) {
+        br.parentNode.removeChild(br);
     }
 
-    // Forcely remove all <p>s on <code> and <a>
+    // Forcely remove all <p>s on <code>, <h4> and <a>
     for (var code of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg code")) {
+        code.innerHTML = code.innerHTML.replace(/<\/?p>/g, "");
+    }
+    for (var code of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg h4")) {
         code.innerHTML = code.innerHTML.replace(/<\/?p>/g, "");
     }
     for (var a of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg a")) {
