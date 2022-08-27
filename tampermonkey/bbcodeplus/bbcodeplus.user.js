@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         BBCode+
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  Enhances the BBCode parser. (parsing is done locally)
 // @author       Gilbert189
 // @match        *://tbgforums.com/forums/edit.php*
+// @match        *://tbgforums.com/forums/search.php*
 // @match        *://tbgforums.com/forums/post.php*
 // @match        *://tbgforums.com/forums/viewtopic.php*
 // @icon
@@ -15,6 +16,7 @@
     'use strict';
 
     const debug = true;
+    const noIFrame = true;
 
     var escape = document.createElement('textarea');
     function escapeHTML(html) {
@@ -38,6 +40,16 @@
     .pun table p {
         padding: 0 !important;
     }
+    audio, video {
+        max-width: 100%;
+        object-fit: cover;
+    }
+    iframe {
+        height: 300px;
+        width: 300px;
+        resize: both;
+        overflow: auto;
+    }
     `;
 
     let style = document.createElement("style");
@@ -53,11 +65,12 @@
         "del": "del",
         "em": "em",
         "ins": "ins",
-        "c": "pre",
+        "c": "code",
         "quote": "div",
         "code": "div",
         "img": "img",
         "color": "span",
+        "bgcolor": "span",
         "font": "span",
         "size": "span",
         "small": "span",
@@ -81,9 +94,14 @@
         "#": "th",
         "|": "td",
         "box": "div",
-        "width": "div"
+        "width": "div",
+        "audio": "audio",
+        "video": "video",
+        "iframe": "iframe",
+        "embed": "embed",
+        "blink": "blink",
     }
-    const textStyles = ["br", "b", "i", "u", "s", "pre", "a", "del", "em", "span", "ins"];
+    const textStyles = ["br", "b", "i", "u", "s", "code", "a", "del", "em", "span", "ins", "blink", "audio", "video", "iframe", "embed"];
 
     function blockToString(block, toBlock=true) {
         let content = "";
@@ -214,6 +232,9 @@
                     case "color":
                         result.setAttribute("style", `color: ${safeCSS(data || "inherit")};`);
                         break;
+                    case "bgcolor":
+                        result.setAttribute("style", `background-color: ${safeCSS(data || "inherit")};`);
+                        break;
                     case "font":
                         result.setAttribute("style", `font-family: ${safeCSS(data || "inherit")};`);
                         break;
@@ -235,6 +256,23 @@
                     case "url":
                         if (data) result.setAttribute("href", data);
                         else result.setAttribute("href", result.innerText);
+                        break;
+                    case "iframe":
+                        if (noIFrame) {
+                            let warning = document.createElement("div");
+                            result.parentNode.insertBefore(warning, result);
+                            result.parentNode.removeChild(result);
+                        } else {
+                            if (data) result.setAttribute("title", data);
+                            result.setAttribute("src", result.innerText);
+                            break;
+                        }
+                    case "embed":
+                    case "audio":
+                    case "video":
+                        if (data) result.setAttribute("type", data);
+                        result.setAttribute("src", result.innerText);
+                        result.setAttribute("controls", undefined);
                         break;
                     case "topic":
                         if (data) result.setAttribute("href", data.replace(/[^\d]+/g, ""));
@@ -296,7 +334,6 @@
                         result.innerHTML = `<pre><code>${result.innerHTML}</code></pre>`;
                         break;
                     case "c":
-                        result.setAttribute("class", "codebox");
                         result.setAttribute("style", "display: inline; margin: 0px;");
                     case "list":
                         let inner = result.innerHTML;
@@ -398,9 +435,13 @@
                     }
                 }
                 accumulator.append(acc2);
-            } else { // something else
+            } else if (node.nodeName.toLowerCase() == "div" && node.getAttribute("class") == "codebox") { // quotes
                 result.appendChild(accumulator);
                 result.appendChild(node);
+                accumulator = document.createElement("p");
+            } else { // something else
+                result.appendChild(accumulator);
+                result.appendChild(correctText(node));
                 accumulator = document.createElement("p");
             }
         }
@@ -409,7 +450,7 @@
     }
 
     // Process all the posts
-    for (var post of document.querySelectorAll("#brdmain div[id^=p]")) {
+    for (var post of document.querySelectorAll("#brdmain div.blockpost")) {
         // Process post
         try {
             let code = post.querySelector("a[onclick^=Quote]"); // consider using the quick post button
@@ -422,7 +463,7 @@
             result = correctText(result, post.getAttribute("id"));
             let content = post.querySelector("div.postright div.postmsg");
             content.innerHTML = "";
-            for (var node in content.childNodes) {content.appendChild(result)}
+            for (var node of [...result.childNodes]) {content.appendChild(node)}
         } catch (e) {console.error(`Error when parsing post of ${post.getAttribute("id")}\n`, e)}
 
         // Process signatures
@@ -432,7 +473,7 @@
             result = correctText(result);
             let content = post.querySelector("div.postright div.postsignature");
             content.innerHTML = "";
-            for (var node in content.childNodes) {content.appendChild(result)}
+            for (var node of [...result.childNodes]) {content.appendChild(node)}
         } catch (e) {console.error(`Error when parsing signature of ${post.getAttribute("id")}\n`, e)}
     }
 
@@ -444,12 +485,12 @@
     // Bodges
 
     // Add <hr>s because the conversion removed them
-    for (var post of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postsignature")) {
+    for (var post of document.querySelectorAll("#brdmain div.blockpost div.postright div.postsignature")) {
         post.prepend(document.createElement("hr"));
     }
 
     // Remove trailing <br> and empty <p>s
-    for (var p of document.querySelectorAll('#brdmain div[id^=p] p')) {
+    for (var p of document.querySelectorAll('#brdmain div.blockpost p')) {
         let children = [...p.childNodes];
         // remove <br> in the beggining
         let latch = false;
@@ -477,28 +518,34 @@
             p.appendChild(c);
         }
     }
-    for (var p of document.querySelectorAll('#brdmain div[id^=p] p:empty')) {
+    for (var p of document.querySelectorAll('#brdmain div.blockpost p:empty')) {
         p.parentNode.removeChild(p);
     }
 
     // Trim tables (you'll see why I added this)
-    for (var br of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg table ~ br")) {
+    for (var br of document.querySelectorAll("#brdmain div.blockpost div.postright div.postmsg table ~ br")) {
         br.parentNode.removeChild(br);
     }
-    for (var br of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg table > br")) {
+    for (var br of document.querySelectorAll("#brdmain div.blockpost div.postright div.postmsg table > br")) {
         br.parentNode.removeChild(br);
     }
 
     // Forcely remove all <p>s on <code>, <h4> and <a>
-    for (var code of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg code")) {
+    for (var code of document.querySelectorAll("#brdmain div.blockpost div.postright div.postmsg code")) {
         code.innerHTML = code.innerHTML.replace(/<\/?p>/g, "");
     }
-    for (var code of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg h4")) {
+    for (var code of document.querySelectorAll("#brdmain div.blockpost div.postright div.postmsg h4")) {
         code.innerHTML = code.innerHTML.replace(/<\/?p>/g, "");
     }
-    for (var a of document.querySelectorAll("#brdmain div[id^=p] div.postright div.postmsg a")) {
+    for (var a of document.querySelectorAll("#brdmain div.blockpost div.postright div.postmsg a")) {
         a.innerHTML = a.innerHTML.replace(/<\/?p>/g, "");
         a.parentNode.insertBefore(document.createElement("br"), a.nextSibling);
     }
 
+    // Take all <code>s out of <p>s
+    for (var code of document.querySelectorAll("#brdmain div.blockpost div.postright div.postmsg div.codebox p pre")) {
+        let parent = code.parentNode;
+        parent.removeChild(code.parentNode);
+        parent.parentNode.appendChild(code);
+    }
 })();
