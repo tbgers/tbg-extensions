@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AJAX Sounds
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.2.1
 // @description  (Re-)enables AJAX Chat sounds
 // @author       Gilbert189, PkmnQ
 // @match        *://tbgforums.com/forums/chat*
@@ -29,5 +29,7 @@
             }
         }
     };
-    chatWindow.onload();
+    try {
+        chatWindow.onload();
+    } catch (e) {}
 })();
