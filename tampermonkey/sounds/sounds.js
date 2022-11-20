@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AJAX Sounds
 // @namespace    http://tampermonkey.net/
-// @version      0.1.1
+// @version      0.2
 // @description  (Re-)enables AJAX Chat sounds
 // @author       Gilbert189, PkmnQ
 // @match        *://tbgforums.com/forums/chat*
@@ -22,6 +22,11 @@
             "sound_4": new Audio("/forums/chat/sounds/sound_4.mp3"),
             "sound_5": new Audio("/forums/chat/sounds/sound_5.mp3"),
             "sound_6": new Audio("/forums/chat/sounds/sound_6.mp3")
+        }
+        chatWindow.ajaxChat.setAudioVolume = function (volume) {
+            for (let sound in this.sounds) {
+                this.sounds[sound].volume = volume
+            }
         }
     };
     chatWindow.onload();
