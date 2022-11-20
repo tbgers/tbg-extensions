@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AJAX Sounds
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.1.1
 // @description  (Re-)enables AJAX Chat sounds
 // @author       Gilbert189, PkmnQ
 // @match        *://tbgforums.com/forums/chat*
@@ -11,9 +11,9 @@
 
 (function() {
     // This is a snippet from TBG Addons by PkmnQ.
-    let chatWindow = document.getElementsByTagName("iframe");
-    if (chatWindow === undefined) chatWindow = document;
-    else chatWindow = chatWindow[0].contentWindow;
+    let chatWindow = document.getElementsByTagName("iframe")[0];
+    if (chatWindow === undefined) chatWindow = window;
+    else chatWindow = chatWindow.contentWindow;
     chatWindow.onload = () => {
         chatWindow.ajaxChat.sounds = {
             "sound_1": new Audio("/forums/chat/sounds/sound_1.mp3"),
@@ -24,5 +24,5 @@
             "sound_6": new Audio("/forums/chat/sounds/sound_6.mp3")
         }
     };
+    chatWindow.onload();
 })();
-
