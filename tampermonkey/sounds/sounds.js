@@ -21,12 +21,12 @@
             chatWindow.ajaxChat.sounds[sound[0]] = new Audio(`/forums/chat/sounds/${sound[1]}`);
         }
         chatWindow.ajaxChat.fillSoundSelection('soundReceiveSetting', chatWindow.ajaxChat.getSetting('soundReceive'));
-		chatWindow.ajaxChat.fillSoundSelection('soundSendSetting', chatWindow.ajaxChat.getSetting('soundSend'));
-		chatWindow.ajaxChat.fillSoundSelection('soundEnterSetting', chatWindow.ajaxChat.getSetting('soundEnter'));
-		chatWindow.ajaxChat.fillSoundSelection('soundLeaveSetting', chatWindow.ajaxChat.getSetting('soundLeave'));
-		chatWindow.ajaxChat.fillSoundSelection('soundChatBotSetting', chatWindow.ajaxChat.getSetting('soundChatBot'));
-		chatWindow.ajaxChat.fillSoundSelection('soundErrorSetting', chatWindow.ajaxChat.getSetting('soundError'));
-		chatWindow.ajaxChat.fillSoundSelection('soundPrivateSetting', chatWindow.ajaxChat.getSetting('soundPrivate'));
+        chatWindow.ajaxChat.fillSoundSelection('soundSendSetting', chatWindow.ajaxChat.getSetting('soundSend'));
+        chatWindow.ajaxChat.fillSoundSelection('soundEnterSetting', chatWindow.ajaxChat.getSetting('soundEnter'));
+        chatWindow.ajaxChat.fillSoundSelection('soundLeaveSetting', chatWindow.ajaxChat.getSetting('soundLeave'));
+        chatWindow.ajaxChat.fillSoundSelection('soundChatBotSetting', chatWindow.ajaxChat.getSetting('soundChatBot'));
+        chatWindow.ajaxChat.fillSoundSelection('soundErrorSetting', chatWindow.ajaxChat.getSetting('soundError'));
+        chatWindow.ajaxChat.fillSoundSelection('soundPrivateSetting', chatWindow.ajaxChat.getSetting('soundPrivate'));
         chatWindow.ajaxChat.setAudioVolume = function (volume) {
             for (let sound in this.sounds) {
                 this.sounds[sound].volume = volume;
