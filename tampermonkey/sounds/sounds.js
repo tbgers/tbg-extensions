@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AJAX Sounds
 // @namespace    http://tampermonkey.net/
-// @version      0.2.2
+// @version      1.0
 // @description  (Re-)enables AJAX Chat sounds
 // @author       Gilbert189, PkmnQ
 // @match        *://tbgforums.com/forums/chat*
@@ -15,19 +15,21 @@
     if (chatWindow === undefined) chatWindow = window;
     else chatWindow = chatWindow.contentWindow;
     chatWindow.onload = () => {
-        chatWindow.ajaxChat.sounds = {
-            "sound_1": new Audio("/forums/chat/sounds/sound_1.mp3"),
-            "sound_2": new Audio("/forums/chat/sounds/sound_2.mp3"),
-            "sound_3": new Audio("/forums/chat/sounds/sound_3.mp3"),
-            "sound_4": new Audio("/forums/chat/sounds/sound_4.mp3"),
-            "sound_5": new Audio("/forums/chat/sounds/sound_5.mp3"),
-            "sound_6": new Audio("/forums/chat/sounds/sound_6.mp3"),
-            "sound_7": new Audio("/forums/chat/sounds/sound_7.mp3"),
-            "sound_8": new Audio("/forums/chat/sounds/sound_8.mp3")
+        chatWindow.ajaxChat.soundFiles["sound_8"] = "sound_8.mp3";
+        chatWindow.ajaxChat.sounds = {};
+        for (let sound of Object.entries(chatWindow.ajaxChat.soundFiles)) {
+            chatWindow.ajaxChat.sounds[sound[0]] = new Audio(`/forums/chat/sounds/${sound[1]}`);
         }
+        chatWindow.ajaxChat.fillSoundSelection('soundReceiveSetting', chatWindow.ajaxChat.getSetting('soundReceive'));
+		chatWindow.ajaxChat.fillSoundSelection('soundSendSetting', chatWindow.ajaxChat.getSetting('soundSend'));
+		chatWindow.ajaxChat.fillSoundSelection('soundEnterSetting', chatWindow.ajaxChat.getSetting('soundEnter'));
+		chatWindow.ajaxChat.fillSoundSelection('soundLeaveSetting', chatWindow.ajaxChat.getSetting('soundLeave'));
+		chatWindow.ajaxChat.fillSoundSelection('soundChatBotSetting', chatWindow.ajaxChat.getSetting('soundChatBot'));
+		chatWindow.ajaxChat.fillSoundSelection('soundErrorSetting', chatWindow.ajaxChat.getSetting('soundError'));
+		chatWindow.ajaxChat.fillSoundSelection('soundPrivateSetting', chatWindow.ajaxChat.getSetting('soundPrivate'));
         chatWindow.ajaxChat.setAudioVolume = function (volume) {
             for (let sound in this.sounds) {
-                this.sounds[sound].volume = volume
+                this.sounds[sound].volume = volume;
             }
         }
     };
